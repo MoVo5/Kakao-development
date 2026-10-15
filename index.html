@@ -8,7 +8,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     html, body { height: 100%; font-family: 'Malgun Gothic', sans-serif; }
 
-    /* 화면 2분할 레이아웃 */
+    /* 화면 2분할 레이아웃 (왼쪽: 검색 / 오른쪽: 지도) */
     #wrapper { display: flex; height: 100%; }
     #sidebar { width: 340px; display: flex; flex-direction: column; border-right: 1px solid #ddd; background: #fff; }
     #map { flex: 1; }
@@ -16,7 +16,7 @@
     /* 제목 + 현재 위치 */
     #header { padding: 14px; background: #fff7e0; border-bottom: 1px solid #eee; }
     #header h1 { font-size: 16px; margin-bottom: 6px; }
-    #myLocation { font-size: 12px; color: #555; line-height: 1.4; }
+    #myLocation { font-size: 12px; color: #555; line-height: 1.5; word-break: break-all; }
 
     /* 탭 버튼 */
     #tabs { display: flex; }
@@ -73,12 +73,16 @@
     // ============================================================
     // 1. 설정값
     // ============================================================
-    // ⚠️ 본인의 JavaScript 키를 아래에 붙여 넣으세요.
-    // (이 파일을 GitHub 등 공개된 곳에 올릴 때는 키를 지우고 올리세요!)
-    const KAKAO_JS_KEY = '38f34f402f14f43f82ded62b32305070';
+    // ⚠️ 아래 따옴표 안에 JavaScript 키만 붙여 넣으세요. (대괄호 [ ] 는 넣지 마세요)
+    // ⚠️ 이 파일을 GitHub 등 공개된 곳에 올릴 때는 키를 지우고 올리세요.
+    const RAW_KAKAO_KEY = '5e49c63bc49c9eb43bf2f0e8e798f477';
+
+    // 실수로 들어간 대괄호/공백/따옴표를 자동으로 제거
+    const KAKAO_JS_KEY = RAW_KAKAO_KEY.replace(/[\[\]\s'"]/g, '');
 
     const DEFAULT_LEVEL = 5;          // 지도 확대 레벨
     const SEARCH_RADIUS = 5000;       // 검색 반경 (미터)
+    const PAGE_SIZE = 10;             // 한 페이지에 보여줄 개수 (10개 초과 시 페이지네이션 생성)
     const CULTURE_CODE = 'CT1';       // 카카오 카테고리: 문화시설
 
     // 탭별 검색 설정 (CT1 안에서 키워드로 좁혀 검색)
@@ -105,18 +109,31 @@
     // ============================================================
     // 3. SDK 동적 로딩 (키를 한 곳에서만 관리)
     // ============================================================
-    const sdkScript = document.createElement('script');
-    sdkScript.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + KAKAO_JS_KEY +
-                    '&libraries=services,clusterer&autoload=false';
-    sdkScript.onload = function () {
-      // 지도 SDK가 완전히 로드된 후에 실행 (로딩 오류 방지)
-      kakao.maps.load(initMap);
-    };
-    sdkScript.onerror = function () {
-      document.getElementById('myLocation').textContent =
-        '지도 SDK를 불러오지 못했어요. 키와 등록된 도메인을 확인해 주세요.';
-    };
-    document.head.appendChild(sdkScript);
+    const statusBox = document.getElementById('myLocation');
+
+    if (location.protocol === 'file:') {
+      // file:// 로 열면 위치 기능과 카카오 도메인 검사가 모두 실패함
+      statusBox.innerHTML = '⚠️ 파일을 직접 열면 지도가 뜨지 않아요.<br>VS Code의 Live Server 등으로 열어주세요.';
+    } else if (!KAKAO_JS_KEY || KAKAO_JS_KEY === '5e49c63bc49c9eb43bf2f0e8e798f477') {
+      statusBox.textContent = '⚠️ 코드 위쪽 RAW_KAKAO_KEY에 JavaScript 키를 넣어 주세요.';
+    } else {
+      const sdkScript = document.createElement('script');
+      sdkScript.src = 'https://dapi.kakao.com/v2/maps/sdk.js?appkey=' + KAKAO_JS_KEY +
+                      '&libraries=services,clusterer&autoload=false';
+      sdkScript.onload = function () {
+        // 지도 SDK가 완전히 로드된 후에 실행 (로딩 오류 방지)
+        kakao.maps.load(initMap);
+      };
+      sdkScript.onerror = function () {
+        // 현재 접속 주소를 보여줘서 카카오 콘솔에 등록한 도메인과 비교할 수 있게 함
+        statusBox.innerHTML =
+          '⚠️ 지도 SDK를 불러오지 못했어요.<br>' +
+          '현재 접속 주소: <b>' + location.origin + '</b><br>' +
+          '이 주소가 카카오 콘솔 [플랫폼 → Web] 도메인에 등록되어 있는지,<br>' +
+          '[카카오맵 사용 설정]이 ON인지 확인해 주세요.';
+      };
+      document.head.appendChild(sdkScript);
+    }
 
     // ============================================================
     // 4. 지도 초기화
@@ -134,11 +151,11 @@
       geocoder = new kakao.maps.services.Geocoder();
       infoWindow = new kakao.maps.InfoWindow({ zIndex: 10, removable: true });
 
-      // 마커 군집화 설정
+      // 마커 군집화 설정 (레벨 4 이상에서 가까운 마커를 묶어서 표시)
       clusterer = new kakao.maps.MarkerClusterer({
         map: map,
         averageCenter: true,
-        minLevel: 6
+        minLevel: 4
       });
 
       // 탭 / 카테고리 버튼 이벤트
@@ -181,7 +198,7 @@
       myPosition = new kakao.maps.LatLng(37.5665, 126.9780);
       map.setCenter(myPosition);
       showMyMarker();
-      document.getElementById('myLocation').textContent = '⚠️ ' + message;
+      statusBox.textContent = '⚠️ ' + message;
     }
 
     // 내 위치 마커 (파란 원)
@@ -198,15 +215,14 @@
     // 내 위치 주소 표시
     function showMyAddress() {
       geocoder.coord2Address(myPosition.getLng(), myPosition.getLat(), function (result, status) {
-        const box = document.getElementById('myLocation');
         if (status === kakao.maps.services.Status.OK) {
           const addr = result[0].road_address
             ? result[0].road_address.address_name
             : result[0].address.address_name;
-          box.innerHTML = '📍 현재 위치: ' + escapeHtml(addr) +
+          statusBox.innerHTML = '📍 현재 위치: ' + escapeHtml(addr) +
             '<br>위도 ' + myPosition.getLat().toFixed(5) + ' / 경도 ' + myPosition.getLng().toFixed(5);
         } else {
-          box.textContent = '📍 현재 위치를 확인했어요.';
+          statusBox.textContent = '📍 현재 위치를 확인했어요.';
         }
       });
     }
@@ -227,6 +243,7 @@
         location: myPosition,
         radius: SEARCH_RADIUS,
         category_group_code: CULTURE_CODE,
+        size: PAGE_SIZE,
         sort: kakao.maps.services.SortBy.DISTANCE
       });
     }
@@ -240,6 +257,7 @@
       ps.categorySearch(CULTURE_CODE, handleResult, {
         location: myPosition,
         radius: SEARCH_RADIUS,
+        size: PAGE_SIZE,
         sort: kakao.maps.services.SortBy.DISTANCE
       });
     }
@@ -310,11 +328,13 @@
 
       let detail = '';
       if (currentTab === 'movie') {
+        // 탭 2: 상영 영화 / 운영시간 / 층
         detail =
           row('상영 중', extra.movies || '카카오맵에서 확인') +
           row('운영시간', hours) +
           row('위치(층)', floor);
       } else {
+        // 탭 1(또는 카테고리 검색): 공연 중인 뮤지컬 / 운영시간
         detail =
           row('공연 중', extra.shows || '카카오맵에서 확인') +
           row('운영시간', hours);
@@ -338,7 +358,7 @@
     }
 
     // ============================================================
-    // 8. 페이지네이션 (결과가 한 페이지를 넘을 때 표시)
+    // 8. 페이지네이션 (결과가 10개를 넘으면 표시)
     // ============================================================
     function renderPagination(pagination) {
       const area = document.getElementById('pagination');
