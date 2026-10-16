@@ -114,7 +114,7 @@
     if (location.protocol === 'file:') {
       // file:// 로 열면 위치 기능과 카카오 도메인 검사가 모두 실패함
       statusBox.innerHTML = '⚠️ 파일을 직접 열면 지도가 뜨지 않아요.<br>VS Code의 Live Server 등으로 열어주세요.';
-    } else if (!KAKAO_JS_KEY || KAKAO_JS_KEY === '5e49c63bc49c9eb43bf2f0e8e798f477') {
+    } else if (!KAKAO_JS_KEY || KAKAO_JS_KEY === 'YOUR_KAKAO_JS_KEY') {
       statusBox.textContent = '⚠️ 코드 위쪽 RAW_KAKAO_KEY에 JavaScript 키를 넣어 주세요.';
     } else {
       const sdkScript = document.createElement('script');
