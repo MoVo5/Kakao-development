@@ -1,13 +1,11 @@
-
 <!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>오늘의 행복을 찾아서: 문화시설 지도</title>
+    <title>오늘의 행복을 찾아서! 문화시설지도</title>
 
     <style>
-        /* 전체 화면 설정 */
         * {
             box-sizing: border-box;
         }
@@ -18,14 +16,12 @@
             color: #333;
         }
 
-        /* 화면을 왼쪽과 오른쪽으로 나누기 */
         .container {
             display: flex;
             width: 100%;
             height: 100vh;
         }
 
-        /* 왼쪽 검색 영역 */
         .sidebar {
             width: 380px;
             min-width: 320px;
@@ -47,7 +43,6 @@
             line-height: 1.6;
         }
 
-        /* 탭 버튼 */
         .tabs {
             display: flex;
             gap: 8px;
@@ -70,7 +65,6 @@
             color: white;
         }
 
-        /* 검색창 */
         .search-box {
             display: flex;
             gap: 6px;
@@ -109,7 +103,6 @@
             outline-offset: 2px;
         }
 
-        /* 상태 안내 */
         #status {
             margin: 12px 0;
             font-size: 13px;
@@ -118,7 +111,6 @@
             overflow-wrap: anywhere;
         }
 
-        /* 검색 결과 목록 */
         #resultList {
             padding: 0;
             margin: 0;
@@ -152,11 +144,10 @@
         .place-link {
             display: inline-block;
             margin-top: 7px;
-            color: #865d3e;
+            color: #527d36;
             font-size: 12px;
         }
 
-        /* 페이지 번호 */
         #pagination {
             display: flex;
             flex-wrap: wrap;
@@ -184,7 +175,6 @@
             opacity: 0.5;
         }
 
-        /* 오른쪽 지도 영역 */
         #map {
             flex: 1;
             min-width: 0;
@@ -192,7 +182,6 @@
             background: #eee;
         }
 
-        /* 작은 화면에서는 위아래로 배치 */
         @media (max-width: 700px) {
             .container {
                 flex-direction: column;
@@ -222,33 +211,30 @@
 <body>
     <div class="container">
 
-        <!-- 왼쪽 검색창과 결과 목록 -->
         <aside class="sidebar">
-            <h1>오늘의 행복을 찾아서<br>문화시설 지도</h1>
+            <h1>오늘의 행복을 찾아서!<br>문화시설지도</h1>
 
             <p class="description">
                 내 주변 문화시설을 찾아<br>
                 오늘의 행복을 발견해 보세요!
             </p>
 
-            <!-- 문화시설 검색 탭 -->
             <div class="tabs">
                 <button
                     class="tab-button active"
                     id="musicalTab"
                     type="button">
-                    뮤지컬 보러가기
+                    뮤지컬 보러가기🎫
                 </button>
 
                 <button
                     class="tab-button"
                     id="movieTab"
                     type="button">
-                    영화 보러가기
+                    영화 보러가🍿
                 </button>
             </div>
 
-            <!-- 장소 이름 검색 -->
             <div class="search-box">
                 <input
                     id="searchInput"
@@ -279,12 +265,10 @@
             <div id="pagination" aria-label="검색 결과 페이지"></div>
         </aside>
 
-        <!-- 오른쪽 지도 -->
         <div id="map" aria-label="주변 문화시설 지도"></div>
     </div>
 
     <!-- 카카오 지도 SDK -->
-    <!-- YOUR_KAKAO_JAVASCRIPT_KEY를 본인의 JavaScript 키로 교체하세요. -->
     <script
         id="kakaoSdk"
         src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=5e49c63bc49c9eb43bf2f0e8e798f477&libraries=services,clusterer&autoload=false">
@@ -302,58 +286,59 @@
         let currentPlaces = [];
         let infoWindow = null;
         let searchRequestNumber = 0;
+        let currentPage = 1;
+        let allSearchResults = [];
 
-        // 기본 지도 중심 좌표
+        // 기본 지도 중심: 서울 시청
         const defaultLatitude = 37.5665;
         const defaultLongitude = 126.9780;
 
-        // HTML 요소를 쉽게 찾는 함수
+        // 연두색 장소 마커
+        const markerImageUrl =
+            'data:image/svg+xml;charset=UTF-8,' +
+            encodeURIComponent(
+                '<svg xmlns="http://www.w3.org/2000/svg" ' +
+                'width="36" height="46" viewBox="0 0 36 46">' +
+                '<path d="M18 44 C14 35 3 24 3 16 A15 15 0 1 1 33 16 C33 24 22 35 18 44Z" ' +
+                'fill="#A8D96C" stroke="#668F35" stroke-width="2"/>' +
+                '<circle cx="18" cy="16" r="6" fill="#FFFFFF"/>' +
+                '</svg>'
+            );
+
+        const markerImage = null;
+
         function getElement(id) {
             return document.getElementById(id);
         }
 
-        // 안내 문구를 변경하는 함수
         function setStatus(message) {
             getElement('status').textContent = message;
         }
 
         // 페이지가 준비되면 버튼에 기능 연결
         document.addEventListener('DOMContentLoaded', function () {
-            getElement('musicalTab').addEventListener(
-                'click',
-                function () {
-                    changeTab('musical');
-                }
-            );
+            getElement('musicalTab').addEventListener('click', function () {
+                changeTab('musical');
+            });
 
-            getElement('movieTab').addEventListener(
-                'click',
-                function () {
-                    changeTab('movie');
-                }
-            );
+            getElement('movieTab').addEventListener('click', function () {
+                changeTab('movie');
+            });
 
-            getElement('searchButton').addEventListener(
-                'click',
-                searchKeyword
-            );
+            getElement('searchButton').addEventListener('click', searchKeyword);
 
             getElement('locationButton').addEventListener(
                 'click',
                 getCurrentLocation
             );
 
-            getElement('searchInput').addEventListener(
-                'keydown',
-                function (event) {
-                    if (event.key === 'Enter') {
-                        searchKeyword();
-                    }
+            getElement('searchInput').addEventListener('keydown', function (event) {
+                if (event.key === 'Enter') {
+                    searchKeyword();
                 }
-            );
+            });
         });
 
-        // 카카오 지도 SDK가 정상적으로 불러와졌는지 확인
         const sdkScript = getElement('kakaoSdk');
 
         sdkScript.addEventListener('error', function () {
@@ -363,44 +348,35 @@
             );
         });
 
-        // 카카오 지도 SDK가 준비된 뒤 지도 생성
-        // 중요: kakao.maps.LatLng도 이 함수 안에서만 사용합니다.
+        // 지도 초기화
         function initializeMap() {
-            // 기본 지도 중심 좌표 생성
             const defaultPosition = new kakao.maps.LatLng(
                 defaultLatitude,
                 defaultLongitude
             );
 
-            // 지도 생성 및 확대 레벨 설정
-            map = new kakao.maps.Map(
-                getElement('map'),
-                {
-                    center: defaultPosition,
-                    level: 5
-                }
-            );
+            map = new kakao.maps.Map(getElement('map'), {
+                center: defaultPosition,
+                level: 5
+            });
 
-            // 장소 검색 서비스 생성
             placesService = new kakao.maps.services.Places(map);
 
-            // 장소 상세 팝업 생성
             infoWindow = new kakao.maps.InfoWindow({
                 zIndex: 10
             });
 
-            // 마커 군집화 기능 생성
+            // 마커 군집화 기능
             clusterer = new kakao.maps.MarkerClusterer({
                 map: map,
                 averageCenter: true,
-                minLevel: 7
+                minLevel: 7,
+                disableClickZoom: false
             });
 
-            // 지도가 준비된 뒤 현재 위치 확인
             getCurrentLocation();
         }
 
-        // 카카오 SDK가 로드된 후 실행
         function loadKakaoMap() {
             if (!window.kakao || !window.kakao.maps) {
                 setStatus(
@@ -410,21 +386,16 @@
                 return;
             }
 
-            // autoload=false이므로 load 함수에서 지도 API 초기화
             kakao.maps.load(function () {
                 try {
                     initializeMap();
                 } catch (error) {
                     console.error('지도 초기화 오류:', error);
-                    setStatus(
-                        '지도 초기화에 실패했습니다. ' +
-                        'F12의 Console에서 오류를 확인해 주세요.'
-                    );
+                    setStatus('지도 초기화에 실패했습니다. Console을 확인해 주세요.');
                 }
             });
         }
 
-        // SDK 스크립트가 이미 로드되었는지 확인
         if (window.kakao && window.kakao.maps) {
             loadKakaoMap();
         } else {
@@ -433,7 +404,7 @@
             });
         }
 
-        // 현재 위치 확인
+        // 실제 현재 위치 가져오기
         function getCurrentLocation() {
             if (!map) {
                 setStatus('지도를 준비하고 있습니다. 잠시 기다려 주세요.');
@@ -441,50 +412,37 @@
             }
 
             if (!navigator.geolocation) {
-                setStatus(
-                    '이 브라우저에서는 현재 위치 확인을 지원하지 않습니다.'
-                );
-                searchNearby();
+                setStatus('이 브라우저에서는 현재 위치 확인을 지원하지 않습니다.');
                 return;
             }
 
-            setStatus(
-                '현재 위치를 확인하고 있습니다. 위치 권한을 허용해 주세요.'
-            );
+            setStatus('현재 위치를 확인하고 있습니다. 위치 권한을 허용해 주세요.');
 
             navigator.geolocation.getCurrentPosition(
                 function (position) {
-                    // 브라우저에서 받은 현재 위치 저장
                     currentPosition = new kakao.maps.LatLng(
                         position.coords.latitude,
                         position.coords.longitude
                     );
 
-                    // 지도 중심을 현재 위치로 이동
                     map.setCenter(currentPosition);
                     map.setLevel(5);
 
-                    // 기존 현재 위치 마커 제거
                     if (currentLocationMarker) {
                         currentLocationMarker.setMap(null);
                     }
 
-                    // 현재 위치 마커 생성
+                    // 현재 위치 마커는 연두색과 구별하기 위해 기본 마커 사용
                     currentLocationMarker = new kakao.maps.Marker({
                         map: map,
                         position: currentPosition,
                         title: '내 현재 위치'
                     });
 
-                    setStatus(
-                        '현재 위치를 확인했습니다. 주변 문화시설을 검색합니다.'
-                    );
-
-                    // 현재 위치 주변 검색
+                    setStatus('현재 위치를 확인했습니다. 주변 장소를 검색합니다.');
                     searchNearby();
                 },
                 function (error) {
-                    // 위치 확인 실패 시 기본 위치 사용
                     currentPosition = null;
 
                     const defaultPosition = new kakao.maps.LatLng(
@@ -500,16 +458,22 @@
                         currentLocationMarker = null;
                     }
 
-                    setStatus(
-                        '현재 위치를 확인할 수 없어 서울 시청 주변에서 검색합니다. ' +
-                        '위치 권한과 HTTPS 연결을 확인해 주세요.'
-                    );
+                    let message = '현재 위치를 확인할 수 없습니다.';
 
+                    if (error.code === 1) {
+                        message += ' 브라우저의 위치 권한을 허용해 주세요.';
+                    } else if (error.code === 2) {
+                        message += ' 위치 정보를 사용할 수 없습니다.';
+                    } else if (error.code === 3) {
+                        message += ' 위치 확인 시간이 초과되었습니다.';
+                    }
+
+                    setStatus(message + ' 서울 시청 주변에서 검색합니다.');
                     searchNearby();
                 },
                 {
                     enableHighAccuracy: true,
-                    timeout: 10000,
+                    timeout: 15000,
                     maximumAge: 60000
                 }
             );
@@ -529,42 +493,65 @@
                 tab === 'movie'
             );
 
-            // 이전 검색 결과 초기화
-            clearResults();
-
-            // 탭 변경 시 카테고리 검색으로 전환
             getElement('searchInput').value = '';
-
-            // 새 탭의 장소 검색
             searchNearby();
         }
 
-        // 기존 검색 결과 제거
+        // 기존 결과와 마커 제거
         function clearResults() {
-            // 이전 검색 응답이 나중에 도착해도 무시하도록 번호 변경
             searchRequestNumber++;
 
-            // 기존 군집 제거
             if (clusterer) {
                 clusterer.clear();
             }
 
-            // 기존 마커 제거
             currentMarkers.forEach(function (marker) {
                 marker.setMap(null);
             });
 
             currentMarkers = [];
             currentPlaces = [];
+            allSearchResults = [];
+            currentPage = 1;
 
-            // 팝업 닫기
             if (infoWindow) {
                 infoWindow.close();
             }
 
-            // 목록과 페이지 번호 제거
             getElement('resultList').innerHTML = '';
             getElement('pagination').innerHTML = '';
+        }
+
+        // 탭별 검색어
+        function getSearchKeywords() {
+            if (currentTab === 'musical') {
+                return ['공연장', '연극극장'];
+            }
+
+            return ['CGV', '메가박스', '롯데시네마'];
+        }
+
+        // 검색 결과가 현재 탭에 맞는지 확인
+        function isCorrectPlace(place) {
+            const name = (place.place_name || '').toLowerCase();
+            const category = (place.category_name || '').toLowerCase();
+
+            if (currentTab === 'musical') {
+                // 공연장 또는 연극극장 관련 카테고리만 표시
+                const correctCategory =
+                    category.includes('공연장') ||
+                    category.includes('연극극장');
+
+                return correctCategory;
+            }
+
+            // 영화 탭에서는 지정된 3개 영화관 브랜드만 표시
+            return (
+                name.includes('cgv') ||
+                name.includes('씨지브이') ||
+                name.includes('메가박스') ||
+                name.includes('롯데시네마')
+            );
         }
 
         // 주변 문화시설 검색
@@ -576,28 +563,119 @@
             clearResults();
 
             const requestNumber = searchRequestNumber;
+            const keywords = getSearchKeywords();
+            const center = currentPosition || map.getCenter();
 
-            setStatus('주변 문화시설을 검색하고 있습니다.');
+            setStatus('선택한 탭에 맞는 장소를 검색하고 있습니다.');
 
-            // 현재 위치 또는 지도 중심을 기준으로 검색
-            const options = {
-                location: currentPosition || map.getCenter(),
-                radius: 10000,
-                sort: kakao.maps.services.SortBy.DISTANCE
+            // 여러 검색어의 결과를 모아 중복 제거
+            let completedSearches = 0;
+            let combinedResults = [];
+
+            keywords.forEach(function (keyword) {
+                placesService.keywordSearch(
+                    keyword,
+                    function (data, status) {
+                        if (requestNumber !== searchRequestNumber) {
+                            return;
+                        }
+
+                        if (status === kakao.maps.services.Status.OK) {
+                            combinedResults = combinedResults.concat(data);
+                        }
+
+                        completedSearches++;
+
+                        if (completedSearches === keywords.length) {
+                            finishNearbySearch(
+                                combinedResults,
+                                requestNumber
+                            );
+                        }
+                    },
+                    {
+                        location: center,
+                        radius: 10000,
+                        sort: kakao.maps.services.SortBy.DISTANCE
+                    }
+                );
+            });
+        }
+
+        // 검색 결과 합치기 및 필터링
+        function finishNearbySearch(data, requestNumber) {
+            if (requestNumber !== searchRequestNumber) {
+                return;
+            }
+
+            const uniquePlaces = [];
+            const seenIds = new Set();
+
+            data.forEach(function (place) {
+                if (!seenIds.has(place.id) && isCorrectPlace(place)) {
+                    seenIds.add(place.id);
+                    uniquePlaces.push(place);
+                }
+            });
+
+            // 현재 위치와 가까운 순서로 정렬
+            const center = currentPosition || map.getCenter();
+
+            uniquePlaces.sort(function (a, b) {
+                const distanceA = getDistance(
+                    Number(center.getLat()),
+                    Number(center.getLng()),
+                    Number(a.y),
+                    Number(a.x)
+                );
+
+                const distanceB = getDistance(
+                    Number(center.getLat()),
+                    Number(center.getLng()),
+                    Number(b.y),
+                    Number(b.x)
+                );
+
+                return distanceA - distanceB;
+            });
+
+            allSearchResults = uniquePlaces;
+            currentPage = 1;
+
+            if (uniquePlaces.length === 0) {
+                clearResults();
+                setStatus(
+                    '조건에 맞는 장소가 없습니다. 다른 검색어를 입력해 보세요.'
+                );
+                return;
+            }
+
+            renderCurrentPage();
+
+            setStatus(
+                '조건에 맞는 장소 ' + uniquePlaces.length + '곳을 찾았습니다.'
+            );
+        }
+
+        // 두 위치 사이의 거리 계산(미터)
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const earthRadius = 6371000;
+            const toRadians = function (degree) {
+                return degree * Math.PI / 180;
             };
 
-            // CT1은 문화시설 전체 카테고리
-            placesService.categorySearch(
-                'CT1',
-                function (data, status, pagination) {
-                    // 이전 검색에서 늦게 도착한 결과 무시
-                    if (requestNumber !== searchRequestNumber) {
-                        return;
-                    }
+            const dLat = toRadians(lat2 - lat1);
+            const dLon = toRadians(lon2 - lon1);
 
-                    handleSearchResults(data, status, pagination);
-                },
-                options
+            const a =
+                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(toRadians(lat1)) *
+                Math.cos(toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+
+            return earthRadius * 2 * Math.atan2(
+                Math.sqrt(a),
+                Math.sqrt(1 - a)
             );
         }
 
@@ -610,7 +688,6 @@
 
             const keyword = getElement('searchInput').value.trim();
 
-            // 검색어가 없으면 주변 문화시설 검색
             if (!keyword) {
                 searchNearby();
                 return;
@@ -624,13 +701,34 @@
 
             placesService.keywordSearch(
                 keyword,
-                function (data, status, pagination) {
-                    // 이전 검색에서 늦게 도착한 결과 무시
+                function (data, status) {
                     if (requestNumber !== searchRequestNumber) {
                         return;
                     }
 
-                    handleSearchResults(data, status, pagination);
+                    if (status !== kakao.maps.services.Status.OK) {
+                        setStatus('검색 결과가 없습니다. 다른 검색어를 입력해 주세요.');
+                        return;
+                    }
+
+                    const filteredResults = data.filter(function (place) {
+                        return isCorrectPlace(place);
+                    });
+
+                    if (filteredResults.length === 0) {
+                        setStatus(
+                            '현재 탭의 조건에 맞는 검색 결과가 없습니다.'
+                        );
+                        return;
+                    }
+
+                    allSearchResults = filteredResults;
+                    currentPage = 1;
+                    renderCurrentPage();
+
+                    setStatus(
+                        '검색 결과 ' + filteredResults.length + '곳을 찾았습니다.'
+                    );
                 },
                 {
                     location: currentPosition || map.getCenter(),
@@ -639,37 +737,22 @@
             );
         }
 
-        // 검색 결과 처리
-        function handleSearchResults(data, status, pagination) {
-            if (status === kakao.maps.services.Status.ZERO_RESULT) {
-                clearResults();
-                setStatus('검색 결과가 없습니다. 다른 검색어를 입력해 주세요.');
-                return;
-            }
+        // 한 페이지에 최대 15개 표시
+        function renderCurrentPage() {
+            const pageSize = 15;
+            const startIndex = (currentPage - 1) * pageSize;
 
-            if (status !== kakao.maps.services.Status.OK) {
-                setStatus(
-                    '검색에 실패했습니다. 잠시 후 다시 시도해 주세요.'
-                );
-                return;
-            }
-
-            currentPlaces = data;
-
-            // 장소 목록과 마커 표시
-            renderPlaces(data);
-
-            // 페이지 번호 표시
-            renderPagination(pagination);
-
-            setStatus(
-                '현재 페이지 검색 결과: ' + data.length + '곳'
+            currentPlaces = allSearchResults.slice(
+                startIndex,
+                startIndex + pageSize
             );
+
+            renderPlaces(currentPlaces);
+            renderPagination();
         }
 
         // 장소 목록과 지도 마커 표시
         function renderPlaces(places) {
-            // 이전 페이지의 마커와 군집 제거
             clusterer.clear();
 
             currentMarkers.forEach(function (marker) {
@@ -685,15 +768,21 @@
                     place.x
                 );
 
-                // 장소 마커 생성
+                // 연두색 마커 생성
                 const marker = new kakao.maps.Marker({
                     position: position,
-                    title: place.place_name
+                    title: place.place_name,
+                    image: new kakao.maps.MarkerImage(
+                        markerImageUrl,
+                        new kakao.maps.Size(36, 46),
+                        {
+                            offset: new kakao.maps.Point(18, 46)
+                        }
+                    )
                 });
 
                 currentMarkers.push(marker);
 
-                // 마커 클릭 시 상세 팝업 표시
                 kakao.maps.event.addListener(
                     marker,
                     'click',
@@ -702,13 +791,13 @@
                     }
                 );
 
-                // 목록 항목 생성
                 const listItem = document.createElement('li');
                 listItem.className = 'place-item';
 
                 const title = document.createElement('strong');
                 title.textContent =
-                    (index + 1) + '. ' + place.place_name;
+                    ((currentPage - 1) * 15 + index + 1) +
+                    '. ' + place.place_name;
 
                 const address = document.createElement('small');
                 address.textContent =
@@ -724,7 +813,6 @@
                 listItem.appendChild(address);
                 listItem.appendChild(category);
 
-                // 목록을 누르면 해당 장소의 팝업 표시
                 listItem.addEventListener('click', function (event) {
                     if (event.target.closest('a')) {
                         return;
@@ -734,7 +822,6 @@
                     showPlaceInfo(place, position);
                 });
 
-                // 카카오맵 상세 페이지 링크
                 if (place.place_url) {
                     const link = document.createElement('a');
 
@@ -751,30 +838,20 @@
                 getElement('resultList').appendChild(listItem);
             });
 
-            // 현재 페이지의 마커를 군집화
+            // 현재 페이지의 마커 군집화
             if (currentMarkers.length > 0) {
                 clusterer.addMarkers(currentMarkers);
             }
         }
 
-        // 장소 상세 팝업 표시
+        // 마커 클릭 시 장소 정보 표시
         function showPlaceInfo(place, position) {
             const address =
                 place.road_address_name ||
                 place.address_name ||
                 '주소 정보 없음';
 
-            const activityTitle =
-                currentTab === 'musical'
-                    ? '현재 공연 중인 뮤지컬'
-                    : '현재 상영 중인 영화';
-
-            const extraInfo =
-                currentTab === 'musical'
-                    ? '공연 제목과 공연 시간은 별도 공연 정보가 필요합니다.'
-                    : '영화 제목과 상영 시간은 별도 영화관 정보가 필요합니다.';
-
-            // 팝업에 표시할 문자열을 안전하게 변환
+            // HTML에 들어가는 문자열 안전하게 처리
             function escapeHtml(value) {
                 return String(value).replace(/[&<>"']/g, function (char) {
                     const entities = {
@@ -789,75 +866,79 @@
                 });
             }
 
-            // 상세 팝업 내용 생성
             let content =
                 '<div style="padding:12px;max-width:260px;' +
-                'font-size:13px;line-height:1.6;">' +
+                'font-size:13px;line-height:1.7;">' +
                 '<strong style="font-size:15px;">' +
                 escapeHtml(place.place_name) +
                 '</strong><br>' +
                 escapeHtml(address) +
-                '<hr style="border:0;border-top:1px solid #eee;">' +
-                '<strong>' + escapeHtml(activityTitle) + '</strong><br>' +
-                escapeHtml(extraInfo) +
-                '<br><strong>운영 시간</strong><br>' +
-                '시설의 공식 안내에서 확인해 주세요.';
+                '<br><br>' +
+                escapeHtml(place.category_name || '문화시설');
 
-            if (currentTab === 'movie') {
+            if (place.place_url) {
                 content +=
-                    '<br><strong>층수</strong><br>' +
-                    '확인 가능한 층수 정보가 없습니다.';
+                    '<br><br><a href="' +
+                    escapeHtml(place.place_url) +
+                    '" target="_blank" rel="noopener noreferrer">' +
+                    '장소 상세 정보 보기</a>';
             }
 
-            content +=
-                '<br><a href="' + escapeHtml(place.place_url || '#') +
-                '" target="_blank" rel="noopener noreferrer">' +
-                '장소 상세 정보 보기</a></div>';
+            content += '</div>';
 
             infoWindow.setContent(content);
             infoWindow.setPosition(position);
             infoWindow.open(map);
         }
 
-        // 검색 결과 페이지 번호 표시
-        function renderPagination(pagination) {
+        // 페이지 번호 표시
+        function renderPagination() {
             const paginationElement = getElement('pagination');
             paginationElement.innerHTML = '';
 
-            if (!pagination || pagination.last <= 1) {
+            const pageSize = 15;
+            const totalPages = Math.ceil(
+                allSearchResults.length / pageSize
+            );
+
+            if (totalPages <= 1) {
                 return;
             }
 
-            // 이전 페이지 버튼
             addPageButton(
                 '이전',
                 function () {
-                    pagination.prevPage();
+                    if (currentPage > 1) {
+                        currentPage--;
+                        renderCurrentPage();
+                    }
                 },
-                !pagination.hasPrevPage
+                currentPage === 1
             );
 
-            // 페이지 번호 버튼
-            for (let page = 1; page <= pagination.last; page++) {
+            for (let page = 1; page <= totalPages; page++) {
                 const pageNumber = page;
 
                 addPageButton(
                     String(pageNumber),
                     function () {
-                        pagination.gotoPage(pageNumber);
+                        currentPage = pageNumber;
+                        renderCurrentPage();
                     },
                     false,
-                    pageNumber === pagination.current
+                    pageNumber === currentPage
                 );
             }
 
-            // 다음 페이지 버튼
             addPageButton(
                 '다음',
                 function () {
-                    pagination.nextPage();
+                    if (currentPage < totalPages) {
+                        currentPage++;
+                        renderCurrentPage();
+                    }
                 },
-                !pagination.hasNextPage
+                currentPage === totalPages
             );
         }
 
