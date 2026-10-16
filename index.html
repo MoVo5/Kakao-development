@@ -65,6 +65,34 @@
             color: white;
         }
 
+        .movie-subtabs {
+            display: flex;
+            gap: 6px;
+            margin: -8px 0 16px;
+        }
+
+        .movie-subtabs[hidden] {
+            display: none;
+        }
+
+        .movie-subtab {
+            flex: 1;
+            padding: 9px 3px;
+            border: 1px solid #d7e8d1;
+            border-radius: 8px;
+            background: #f4f9f1;
+            color: #456b3c;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .movie-subtab.active {
+            background: #b9e6a8;
+            border-color: #9bd487;
+            color: #254b1b;
+            font-weight: bold;
+        }
+
         .search-box {
             display: flex;
             gap: 6px;
@@ -144,7 +172,7 @@
         .place-link {
             display: inline-block;
             margin-top: 7px;
-            color: #527d36;
+            color: #865d3e;
             font-size: 12px;
         }
 
@@ -231,16 +259,42 @@
                     class="tab-button"
                     id="movieTab"
                     type="button">
-                    영화 보러가🍿
+                    영화 보러가기🍿
                 </button>
             </div>
 
+            <!-- 영화관 브랜드별 탭 -->
+            <div class="movie-subtabs" id="movieSubtabs" hidden>
+                <button
+                    class="movie-subtab active"
+                    id="cgvTab"
+                    type="button">
+                    CGV
+                </button>
+
+                <button
+                    class="movie-subtab"
+                    id="megaboxTab"
+                    type="button">
+                    메가박스
+                </button>
+
+                <button
+                    class="movie-subtab"
+                    id="lotteTab"
+                    type="button">
+                    롯데시네마
+                </button>
+            </div>
+
+            <!-- 지역을 입력하면 해당 지역 검색 -->
+            <!-- 비워 두면 현재 위치 주변 검색 -->
             <div class="search-box">
                 <input
                     id="searchInput"
                     type="text"
-                    placeholder="문화시설 이름 검색"
-                    aria-label="문화시설 이름 검색">
+                    placeholder="지역 입력 (예: 부산, 제주)"
+                    aria-label="검색할 지역">
 
                 <button
                     class="search-button"
@@ -265,47 +319,56 @@
             <div id="pagination" aria-label="검색 결과 페이지"></div>
         </aside>
 
-        <div id="map" aria-label="주변 문화시설 지도"></div>
+        <div id="map" aria-label="문화시설 지도"></div>
     </div>
 
     <!-- 카카오 지도 SDK -->
+    <!-- 기존 JavaScript 키를 유지했어. -->
     <script
         id="kakaoSdk"
         src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=5e49c63bc49c9eb43bf2f0e8e798f477&libraries=services,clusterer&autoload=false">
     </script>
 
     <script>
-        // 지도와 검색에 필요한 변수
         let map = null;
         let placesService = null;
         let clusterer = null;
         let currentLocationMarker = null;
         let currentPosition = null;
         let currentTab = 'musical';
+        let currentMovieBrand = 'cgv';
         let currentMarkers = [];
-        let currentPlaces = [];
         let infoWindow = null;
         let searchRequestNumber = 0;
-        let currentPage = 1;
-        let allSearchResults = [];
 
-        // 기본 지도 중심: 서울 시청
-        const defaultLatitude = 37.5665;
-        const defaultLongitude = 126.9780;
+        // 대한민국 중심 부근을 기본 지도 위치로 사용
+        // 위치 권한이 거부되어도 서울로 자동 이동하지 않음
+        const defaultLatitude = 36.5;
+        const defaultLongitude = 127.8;
 
-        // 연두색 장소 마커
-        const markerImageUrl =
-            'data:image/svg+xml;charset=UTF-8,' +
-            encodeURIComponent(
-                '<svg xmlns="http://www.w3.org/2000/svg" ' +
-                'width="36" height="46" viewBox="0 0 36 46">' +
-                '<path d="M18 44 C14 35 3 24 3 16 A15 15 0 1 1 33 16 C33 24 22 35 18 44Z" ' +
-                'fill="#A8D96C" stroke="#668F35" stroke-width="2"/>' +
-                '<circle cx="18" cy="16" r="6" fill="#FFFFFF"/>' +
-                '</svg>'
-            );
+        // 카카오 장소 검색의 반경 제한
+        const searchRadius = 20000;
 
-        const markerImage = null;
+        // 영화관 브랜드별 검색 설정
+        const movieBrands = {
+            cgv: {
+                label: 'CGV',
+                query: 'CGV 영화관',
+                pattern: /cgv|씨지브이/i
+            },
+
+            megabox: {
+                label: '메가박스',
+                query: '메가박스 영화관',
+                pattern: /메가박스/i
+            },
+
+            lotte: {
+                label: '롯데시네마',
+                query: '롯데시네마 영화관',
+                pattern: /롯데시네마/i
+            }
+        };
 
         function getElement(id) {
             return document.getElementById(id);
@@ -315,7 +378,7 @@
             getElement('status').textContent = message;
         }
 
-        // 페이지가 준비되면 버튼에 기능 연결
+        // 버튼에 기능 연결
         document.addEventListener('DOMContentLoaded', function () {
             getElement('musicalTab').addEventListener('click', function () {
                 changeTab('musical');
@@ -325,18 +388,33 @@
                 changeTab('movie');
             });
 
-            getElement('searchButton').addEventListener('click', searchKeyword);
+            getElement('cgvTab').addEventListener('click', function () {
+                changeMovieBrand('cgv');
+            });
+
+            getElement('megaboxTab').addEventListener('click', function () {
+                changeMovieBrand('megabox');
+            });
+
+            getElement('lotteTab').addEventListener('click', function () {
+                changeMovieBrand('lotte');
+            });
+
+            getElement('searchButton').addEventListener('click', searchNearby);
 
             getElement('locationButton').addEventListener(
                 'click',
                 getCurrentLocation
             );
 
-            getElement('searchInput').addEventListener('keydown', function (event) {
-                if (event.key === 'Enter') {
-                    searchKeyword();
+            getElement('searchInput').addEventListener(
+                'keydown',
+                function (event) {
+                    if (event.key === 'Enter') {
+                        searchNearby();
+                    }
                 }
-            });
+            );
         });
 
         const sdkScript = getElement('kakaoSdk');
@@ -350,15 +428,18 @@
 
         // 지도 초기화
         function initializeMap() {
-            const defaultPosition = new kakao.maps.LatLng(
+            const initialPosition = new kakao.maps.LatLng(
                 defaultLatitude,
                 defaultLongitude
             );
 
-            map = new kakao.maps.Map(getElement('map'), {
-                center: defaultPosition,
-                level: 5
-            });
+            map = new kakao.maps.Map(
+                getElement('map'),
+                {
+                    center: initialPosition,
+                    level: 13
+                }
+            );
 
             placesService = new kakao.maps.services.Places(map);
 
@@ -366,14 +447,14 @@
                 zIndex: 10
             });
 
-            // 마커 군집화 기능
+            // 마커 군집화
             clusterer = new kakao.maps.MarkerClusterer({
                 map: map,
                 averageCenter: true,
-                minLevel: 7,
-                disableClickZoom: false
+                minLevel: 7
             });
 
+            // 지도를 만든 후 실제 현재 위치 확인
             getCurrentLocation();
         }
 
@@ -391,7 +472,11 @@
                     initializeMap();
                 } catch (error) {
                     console.error('지도 초기화 오류:', error);
-                    setStatus('지도 초기화에 실패했습니다. Console을 확인해 주세요.');
+
+                    setStatus(
+                        '지도 초기화에 실패했습니다. ' +
+                        'F12의 Console에서 오류를 확인해 주세요.'
+                    );
                 }
             });
         }
@@ -404,7 +489,7 @@
             });
         }
 
-        // 실제 현재 위치 가져오기
+        // 실제 사용자의 위치 확인
         function getCurrentLocation() {
             if (!map) {
                 setStatus('지도를 준비하고 있습니다. 잠시 기다려 주세요.');
@@ -412,14 +497,23 @@
             }
 
             if (!navigator.geolocation) {
-                setStatus('이 브라우저에서는 현재 위치 확인을 지원하지 않습니다.');
+                currentPosition = null;
+
+                setStatus(
+                    '이 브라우저는 현재 위치 기능을 지원하지 않습니다. ' +
+                    '지역을 입력해 검색해 주세요.'
+                );
                 return;
             }
 
-            setStatus('현재 위치를 확인하고 있습니다. 위치 권한을 허용해 주세요.');
+            setStatus(
+                '현재 위치를 확인하고 있습니다. ' +
+                '브라우저의 위치 권한 요청이 나오면 허용해 주세요.'
+            );
 
             navigator.geolocation.getCurrentPosition(
                 function (position) {
+                    // 실제 사용자의 위도와 경도
                     currentPosition = new kakao.maps.LatLng(
                         position.coords.latitude,
                         position.coords.longitude
@@ -432,45 +526,50 @@
                         currentLocationMarker.setMap(null);
                     }
 
-                    // 현재 위치 마커는 연두색과 구별하기 위해 기본 마커 사용
                     currentLocationMarker = new kakao.maps.Marker({
                         map: map,
                         position: currentPosition,
                         title: '내 현재 위치'
                     });
 
-                    setStatus('현재 위치를 확인했습니다. 주변 장소를 검색합니다.');
-                    searchNearby();
-                },
-                function (error) {
-                    currentPosition = null;
-
-                    const defaultPosition = new kakao.maps.LatLng(
-                        defaultLatitude,
-                        defaultLongitude
+                    setStatus(
+                        '현재 위치를 확인했습니다. ' +
+                        '해당 위치 주변의 문화시설을 검색합니다.'
                     );
 
-                    map.setCenter(defaultPosition);
-                    map.setLevel(5);
+                    searchNearby();
+                },
+
+                function (error) {
+                    currentPosition = null;
 
                     if (currentLocationMarker) {
                         currentLocationMarker.setMap(null);
                         currentLocationMarker = null;
                     }
 
-                    let message = '현재 위치를 확인할 수 없습니다.';
+                    let reason = '현재 위치를 확인하지 못했습니다.';
 
                     if (error.code === 1) {
-                        message += ' 브라우저의 위치 권한을 허용해 주세요.';
-                    } else if (error.code === 2) {
-                        message += ' 위치 정보를 사용할 수 없습니다.';
-                    } else if (error.code === 3) {
-                        message += ' 위치 확인 시간이 초과되었습니다.';
+                        reason = '위치 권한이 거부되었습니다.';
                     }
 
-                    setStatus(message + ' 서울 시청 주변에서 검색합니다.');
-                    searchNearby();
+                    if (error.code === 2) {
+                        reason = '기기의 위치 정보를 확인할 수 없습니다.';
+                    }
+
+                    if (error.code === 3) {
+                        reason = '현재 위치 확인 시간이 초과되었습니다.';
+                    }
+
+                    setStatus(
+                        reason +
+                        ' 브라우저 주소창의 사이트 권한에서 위치를 허용하거나, ' +
+                        '지역 입력란에 부산, 제주, 대전 등의 지역을 입력해 주세요. ' +
+                        '서울로 자동 전환하지 않습니다.'
+                    );
                 },
+
                 {
                     enableHighAccuracy: true,
                     timeout: 15000,
@@ -479,7 +578,7 @@
             );
         }
 
-        // 탭 변경
+        // 메인 탭 변경
         function changeTab(tab) {
             currentTab = tab;
 
@@ -493,11 +592,36 @@
                 tab === 'movie'
             );
 
-            getElement('searchInput').value = '';
+            getElement('movieSubtabs').hidden = tab !== 'movie';
+
+            clearResults();
             searchNearby();
         }
 
-        // 기존 결과와 마커 제거
+        // 영화관 브랜드 탭 변경
+        function changeMovieBrand(brand) {
+            currentMovieBrand = brand;
+
+            getElement('cgvTab').classList.toggle(
+                'active',
+                brand === 'cgv'
+            );
+
+            getElement('megaboxTab').classList.toggle(
+                'active',
+                brand === 'megabox'
+            );
+
+            getElement('lotteTab').classList.toggle(
+                'active',
+                brand === 'lotte'
+            );
+
+            clearResults();
+            searchNearby();
+        }
+
+        // 기존 검색 결과 제거
         function clearResults() {
             searchRequestNumber++;
 
@@ -510,9 +634,6 @@
             });
 
             currentMarkers = [];
-            currentPlaces = [];
-            allSearchResults = [];
-            currentPage = 1;
 
             if (infoWindow) {
                 infoWindow.close();
@@ -522,39 +643,7 @@
             getElement('pagination').innerHTML = '';
         }
 
-        // 탭별 검색어
-        function getSearchKeywords() {
-            if (currentTab === 'musical') {
-                return ['공연장', '연극극장'];
-            }
-
-            return ['CGV', '메가박스', '롯데시네마'];
-        }
-
-        // 검색 결과가 현재 탭에 맞는지 확인
-        function isCorrectPlace(place) {
-            const name = (place.place_name || '').toLowerCase();
-            const category = (place.category_name || '').toLowerCase();
-
-            if (currentTab === 'musical') {
-                // 공연장 또는 연극극장 관련 카테고리만 표시
-                const correctCategory =
-                    category.includes('공연장') ||
-                    category.includes('연극극장');
-
-                return correctCategory;
-            }
-
-            // 영화 탭에서는 지정된 3개 영화관 브랜드만 표시
-            return (
-                name.includes('cgv') ||
-                name.includes('씨지브이') ||
-                name.includes('메가박스') ||
-                name.includes('롯데시네마')
-            );
-        }
-
-        // 주변 문화시설 검색
+        // 문화시설 검색
         function searchNearby() {
             if (!map || !placesService) {
                 return;
@@ -563,197 +652,164 @@
             clearResults();
 
             const requestNumber = searchRequestNumber;
-            const keywords = getSearchKeywords();
-            const center = currentPosition || map.getCenter();
+            const region = getElement('searchInput').value.trim();
 
-            setStatus('선택한 탭에 맞는 장소를 검색하고 있습니다.');
-
-            // 여러 검색어의 결과를 모아 중복 제거
-            let completedSearches = 0;
-            let combinedResults = [];
-
-            keywords.forEach(function (keyword) {
-                placesService.keywordSearch(
-                    keyword,
-                    function (data, status) {
-                        if (requestNumber !== searchRequestNumber) {
-                            return;
-                        }
-
-                        if (status === kakao.maps.services.Status.OK) {
-                            combinedResults = combinedResults.concat(data);
-                        }
-
-                        completedSearches++;
-
-                        if (completedSearches === keywords.length) {
-                            finishNearbySearch(
-                                combinedResults,
-                                requestNumber
-                            );
-                        }
-                    },
-                    {
-                        location: center,
-                        radius: 10000,
-                        sort: kakao.maps.services.SortBy.DISTANCE
-                    }
-                );
-            });
-        }
-
-        // 검색 결과 합치기 및 필터링
-        function finishNearbySearch(data, requestNumber) {
-            if (requestNumber !== searchRequestNumber) {
-                return;
-            }
-
-            const uniquePlaces = [];
-            const seenIds = new Set();
-
-            data.forEach(function (place) {
-                if (!seenIds.has(place.id) && isCorrectPlace(place)) {
-                    seenIds.add(place.id);
-                    uniquePlaces.push(place);
-                }
-            });
-
-            // 현재 위치와 가까운 순서로 정렬
-            const center = currentPosition || map.getCenter();
-
-            uniquePlaces.sort(function (a, b) {
-                const distanceA = getDistance(
-                    Number(center.getLat()),
-                    Number(center.getLng()),
-                    Number(a.y),
-                    Number(a.x)
-                );
-
-                const distanceB = getDistance(
-                    Number(center.getLat()),
-                    Number(center.getLng()),
-                    Number(b.y),
-                    Number(b.x)
-                );
-
-                return distanceA - distanceB;
-            });
-
-            allSearchResults = uniquePlaces;
-            currentPage = 1;
-
-            if (uniquePlaces.length === 0) {
-                clearResults();
-                setStatus(
-                    '조건에 맞는 장소가 없습니다. 다른 검색어를 입력해 보세요.'
-                );
-                return;
-            }
-
-            renderCurrentPage();
-
-            setStatus(
-                '조건에 맞는 장소 ' + uniquePlaces.length + '곳을 찾았습니다.'
-            );
-        }
-
-        // 두 위치 사이의 거리 계산(미터)
-        function getDistance(lat1, lon1, lat2, lon2) {
-            const earthRadius = 6371000;
-            const toRadians = function (degree) {
-                return degree * Math.PI / 180;
+            let query;
+            const options = {
+                size: 15
             };
 
-            const dLat = toRadians(lat2 - lat1);
-            const dLon = toRadians(lon2 - lon1);
+            if (currentTab === 'movie') {
+                // 선택한 영화관 브랜드만 검색
+                query = movieBrands[currentMovieBrand].query;
 
-            const a =
-                Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                Math.cos(toRadians(lat1)) *
-                Math.cos(toRadians(lat2)) *
-                Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                if (region) {
+                    query = region + ' ' + query;
+                }
+            } else {
+                // 공연장 검색
+                query = region
+                    ? region + ' 공연장'
+                    : '공연장';
+            }
 
-            return earthRadius * 2 * Math.atan2(
-                Math.sqrt(a),
-                Math.sqrt(1 - a)
+            if (!region) {
+                // 지역 입력이 없으면 실제 현재 위치를 사용
+                if (!currentPosition) {
+                    setStatus(
+                        '현재 위치를 확인하지 못했습니다. ' +
+                        '위치 권한을 허용하거나 지역을 입력해 주세요.'
+                    );
+                    return;
+                }
+
+                options.location = currentPosition;
+                options.radius = searchRadius;
+                options.sort = kakao.maps.services.SortBy.DISTANCE;
+            } else {
+                // 지역을 입력하면 해당 지역 키워드로 검색
+                options.sort = kakao.maps.services.SortBy.ACCURACY;
+            }
+
+            setStatus(
+                region
+                    ? '입력한 지역의 문화시설을 검색하고 있습니다.'
+                    : '현재 위치 주변의 문화시설을 검색하고 있습니다.'
             );
-        }
-
-        // 장소 이름 검색
-        function searchKeyword() {
-            if (!map || !placesService) {
-                setStatus('지도를 준비하고 있습니다. 잠시 기다려 주세요.');
-                return;
-            }
-
-            const keyword = getElement('searchInput').value.trim();
-
-            if (!keyword) {
-                searchNearby();
-                return;
-            }
-
-            clearResults();
-
-            const requestNumber = searchRequestNumber;
-
-            setStatus('입력한 장소를 검색하고 있습니다.');
 
             placesService.keywordSearch(
-                keyword,
-                function (data, status) {
+                query,
+
+                function (data, status, pagination) {
+                    // 이전 요청의 결과가 늦게 도착하면 무시
                     if (requestNumber !== searchRequestNumber) {
                         return;
                     }
 
-                    if (status !== kakao.maps.services.Status.OK) {
-                        setStatus('검색 결과가 없습니다. 다른 검색어를 입력해 주세요.');
-                        return;
-                    }
+                    if (
+                        status === kakao.maps.services.Status.ZERO_RESULT ||
+                        !data ||
+                        data.length === 0
+                    ) {
+                        clearResults();
 
-                    const filteredResults = data.filter(function (place) {
-                        return isCorrectPlace(place);
-                    });
-
-                    if (filteredResults.length === 0) {
                         setStatus(
-                            '현재 탭의 조건에 맞는 검색 결과가 없습니다.'
+                            '검색 결과가 없습니다. ' +
+                            '지역 이름을 바꾸거나 다른 탭을 선택해 주세요.'
                         );
                         return;
                     }
 
-                    allSearchResults = filteredResults;
-                    currentPage = 1;
-                    renderCurrentPage();
+                    if (status !== kakao.maps.services.Status.OK) {
+                        setStatus(
+                            '검색에 실패했습니다. 잠시 후 다시 시도해 주세요.'
+                        );
+                        return;
+                    }
+
+                    let filtered = data;
+
+                    if (currentTab === 'movie') {
+                        const brand = movieBrands[currentMovieBrand];
+
+                        filtered = data.filter(function (place) {
+                            const name = place.place_name || '';
+                            const category = place.category_name || '';
+
+                            // 브랜드 이름과 실제 영화관 분류가 모두 맞아야 함
+                            // 예: 투썸플레이스 명동CGV스윗바점은 영화관이 아니므로 제외
+                            return (
+                                brand.pattern.test(name) &&
+                                /영화관/.test(category) &&
+                                !/투썸|스타벅스|카페|커피|베이커리/i.test(name)
+                            );
+                        });
+                    } else {
+                        filtered = data.filter(function (place) {
+                            const category = place.category_name || '';
+
+                            return /공연장|연극극장/.test(category);
+                        });
+                    }
+
+                    if (filtered.length === 0) {
+                        clearResults();
+
+                        setStatus(
+                            '조건에 맞는 장소가 없습니다. ' +
+                            '지역을 바꾸거나 다른 영화관 브랜드 탭을 선택해 주세요.'
+                        );
+                        return;
+                    }
+
+                    renderPlaces(filtered);
+                    renderPagination(pagination);
 
                     setStatus(
-                        '검색 결과 ' + filteredResults.length + '곳을 찾았습니다.'
+                        '조건에 맞는 검색 결과 ' +
+                        filtered.length +
+                        '곳을 표시했습니다.'
                     );
                 },
-                {
-                    location: currentPosition || map.getCenter(),
-                    sort: kakao.maps.services.SortBy.DISTANCE
-                }
+
+                options
             );
         }
 
-        // 한 페이지에 최대 15개 표시
-        function renderCurrentPage() {
-            const pageSize = 15;
-            const startIndex = (currentPage - 1) * pageSize;
+        // 연두색 마커 만들기
+        function createLightGreenMarker(position, title) {
+            const svg =
+                '<svg xmlns="http://www.w3.org/2000/svg" ' +
+                'width="34" height="44" viewBox="0 0 34 44">' +
+                '<path d="M17 1C8.2 1 1.5 7.8 1.5 16.3 ' +
+                'C1.5 27.2 17 43 17 43S32.5 27.2 32.5 16.3 ' +
+                'C32.5 7.8 25.8 1 17 1Z" ' +
+                'fill="#b9e6a8" stroke="#5f9f4f" stroke-width="2"/>' +
+                '<circle cx="17" cy="16" r="5.5" fill="#ffffff" ' +
+                'stroke="#5f9f4f" stroke-width="1.5"/>' +
+                '</svg>';
 
-            currentPlaces = allSearchResults.slice(
-                startIndex,
-                startIndex + pageSize
+            const image = new kakao.maps.MarkerImage(
+                'data:image/svg+xml;charset=UTF-8,' +
+                encodeURIComponent(svg),
+                new kakao.maps.Size(34, 44),
+                {
+                    offset: new kakao.maps.Point(17, 43)
+                }
             );
 
-            renderPlaces(currentPlaces);
-            renderPagination();
+            return new kakao.maps.Marker({
+                position: position,
+                title: title,
+                image: image
+            });
         }
 
         // 장소 목록과 지도 마커 표시
         function renderPlaces(places) {
-            clusterer.clear();
+            if (clusterer) {
+                clusterer.clear();
+            }
 
             currentMarkers.forEach(function (marker) {
                 marker.setMap(null);
@@ -768,18 +824,10 @@
                     place.x
                 );
 
-                // 연두색 마커 생성
-                const marker = new kakao.maps.Marker({
-                    position: position,
-                    title: place.place_name,
-                    image: new kakao.maps.MarkerImage(
-                        markerImageUrl,
-                        new kakao.maps.Size(36, 46),
-                        {
-                            offset: new kakao.maps.Point(18, 46)
-                        }
-                    )
-                });
+                const marker = createLightGreenMarker(
+                    position,
+                    place.place_name
+                );
 
                 currentMarkers.push(marker);
 
@@ -791,13 +839,12 @@
                     }
                 );
 
-                const listItem = document.createElement('li');
-                listItem.className = 'place-item';
+                const item = document.createElement('li');
+                item.className = 'place-item';
 
                 const title = document.createElement('strong');
                 title.textContent =
-                    ((currentPage - 1) * 15 + index + 1) +
-                    '. ' + place.place_name;
+                    (index + 1) + '. ' + place.place_name;
 
                 const address = document.createElement('small');
                 address.textContent =
@@ -809,11 +856,11 @@
                 category.textContent =
                     place.category_name || '문화시설';
 
-                listItem.appendChild(title);
-                listItem.appendChild(address);
-                listItem.appendChild(category);
+                item.appendChild(title);
+                item.appendChild(address);
+                item.appendChild(category);
 
-                listItem.addEventListener('click', function (event) {
+                item.addEventListener('click', function (event) {
                     if (event.target.closest('a')) {
                         return;
                     }
@@ -831,114 +878,102 @@
                     link.rel = 'noopener noreferrer';
                     link.textContent = '카카오맵에서 자세히 보기';
 
-                    listItem.appendChild(document.createElement('br'));
-                    listItem.appendChild(link);
+                    item.appendChild(document.createElement('br'));
+                    item.appendChild(link);
                 }
 
-                getElement('resultList').appendChild(listItem);
+                getElement('resultList').appendChild(item);
             });
 
-            // 현재 페이지의 마커 군집화
-            if (currentMarkers.length > 0) {
+            // 마커 군집화 적용
+            if (clusterer && currentMarkers.length > 0) {
                 clusterer.addMarkers(currentMarkers);
             }
         }
 
-        // 마커 클릭 시 장소 정보 표시
+        // 장소 정보 팝업
+        // 실제로 확인할 수 없는 상영 시간이나 공연 정보를 만들지 않음
         function showPlaceInfo(place, position) {
             const address =
                 place.road_address_name ||
                 place.address_name ||
                 '주소 정보 없음';
 
-            // HTML에 들어가는 문자열 안전하게 처리
-            function escapeHtml(value) {
-                return String(value).replace(/[&<>"']/g, function (char) {
-                    const entities = {
-                        '&': '&amp;',
-                        '<': '&lt;',
-                        '>': '&gt;',
-                        '"': '&quot;',
-                        "'": '&#39;'
-                    };
+            const safeName = escapeHtml(
+                place.place_name || '장소 이름 없음'
+            );
 
-                    return entities[char];
-                });
-            }
+            const safeAddress = escapeHtml(address);
+            const safeUrl = escapeHtml(place.place_url || '#');
 
-            let content =
+            const content =
                 '<div style="padding:12px;max-width:260px;' +
-                'font-size:13px;line-height:1.7;">' +
+                'font-size:13px;line-height:1.6;">' +
                 '<strong style="font-size:15px;">' +
-                escapeHtml(place.place_name) +
+                safeName +
                 '</strong><br>' +
-                escapeHtml(address) +
-                '<br><br>' +
-                escapeHtml(place.category_name || '문화시설');
-
-            if (place.place_url) {
-                content +=
-                    '<br><br><a href="' +
-                    escapeHtml(place.place_url) +
-                    '" target="_blank" rel="noopener noreferrer">' +
-                    '장소 상세 정보 보기</a>';
-            }
-
-            content += '</div>';
+                safeAddress +
+                '<br><a href="' +
+                safeUrl +
+                '" target="_blank" rel="noopener noreferrer">' +
+                '카카오맵에서 자세히 보기</a></div>';
 
             infoWindow.setContent(content);
             infoWindow.setPosition(position);
             infoWindow.open(map);
         }
 
-        // 페이지 번호 표시
-        function renderPagination() {
-            const paginationElement = getElement('pagination');
-            paginationElement.innerHTML = '';
+        // 팝업에 넣을 HTML 문자열 안전 처리
+        function escapeHtml(value) {
+            return String(value).replace(/[&<>"']/g, function (char) {
+                const entities = {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                };
 
-            const pageSize = 15;
-            const totalPages = Math.ceil(
-                allSearchResults.length / pageSize
-            );
+                return entities[char];
+            });
+        }
 
-            if (totalPages <= 1) {
+        // 검색 결과 페이지 번호 표시
+        function renderPagination(pagination) {
+            const element = getElement('pagination');
+            element.innerHTML = '';
+
+            if (!pagination || pagination.last <= 1) {
                 return;
             }
 
             addPageButton(
                 '이전',
                 function () {
-                    if (currentPage > 1) {
-                        currentPage--;
-                        renderCurrentPage();
-                    }
+                    pagination.prevPage();
                 },
-                currentPage === 1
+                !pagination.hasPrevPage
             );
 
-            for (let page = 1; page <= totalPages; page++) {
+            for (let page = 1; page <= pagination.last; page++) {
                 const pageNumber = page;
 
                 addPageButton(
                     String(pageNumber),
                     function () {
-                        currentPage = pageNumber;
-                        renderCurrentPage();
+                        pagination.gotoPage(pageNumber);
                     },
                     false,
-                    pageNumber === currentPage
+                    pageNumber === pagination.current
                 );
             }
 
             addPageButton(
                 '다음',
                 function () {
-                    if (currentPage < totalPages) {
-                        currentPage++;
-                        renderCurrentPage();
-                    }
+                    pagination.nextPage();
                 },
-                currentPage === totalPages
+                !pagination.hasNextPage
             );
         }
 
